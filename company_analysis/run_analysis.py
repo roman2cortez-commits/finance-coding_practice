@@ -9,7 +9,6 @@ import os
 from metrics import all_metrics, fmt
 from sec_data import ticker_to_cik, load_company
 from stage3_dcf import ask_assumptions, dcf, describe
-from stage5_excel import save_report
 from stage6_credit import credit_rating
 
 GROUPS = {
@@ -51,8 +50,23 @@ def main():
               f"{fmt(m['EBITDA margin'], 'pct'):>11}{fmt(m['Debt / EBITDA'], 'x'):>12}"
               f"{per_share:>13}  {rating}")
 
+    save_excel(companies, dcf_results, assumptions)
+
+
+def save_excel(companies, dcf_results, assumptions):
+    try:
+        from stage5_excel import save_report
+    except ModuleNotFoundError:
+        print("\nCouldn't save the Excel report: the openpyxl package isn't installed for")
+        print("the Python you're using. Fix it by running:  python -m pip install openpyxl")
+        return
     os.makedirs(os.path.dirname(OUTPUT_FILE), exist_ok=True)
-    save_report(companies, dcf_results, assumptions, OUTPUT_FILE)
+    try:
+        save_report(companies, dcf_results, assumptions, OUTPUT_FILE)
+    except PermissionError:
+        print("\nCouldn't save the Excel report because it's open in Excel.")
+        print("Close company_analysis.xlsx in Excel, then run the program again.")
+        return
     print(f"\nSaved Excel report: {OUTPUT_FILE}")
     print("Note: asset managers' numbers include consolidated funds - see the Notes sheet.")
 
