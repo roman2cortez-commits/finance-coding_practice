@@ -68,82 +68,59 @@ def ticker_to_cik():
     return lookup
 
 
-def to_date(text):
-    return date.fromisoformat(text)
+def days_between(start, end):
+    return (date.fromisoformat(end) - date.fromisoformat(start)).days
 
 
 def is_full_year(entry):
-    if "start" not in entry:
-        return False
-    days = (to_date(entry["end"]) - to_date(entry["start"])).days
-    return 350 <= days <= 380
+    return "start" in entry and 350 <= days_between(entry["start"], entry["end"]) <= 380
 
 
 def entries_for(facts, tag):
     # All reported values for one tag, in dollars (or shares)
-    if tag not in facts:
-        return []
-    units = facts[tag]["units"]
-    if "USD" in units:
-        return units["USD"]
-    if "shares" in units:
-        return units["shares"]
-    return []
+    units = facts.get(tag, {}).get("units", {})
+    return units.get("USD") or units.get("shares") or []
 
 
 def latest_fiscal_year_end(facts):
     # The most recent full-year period the company reported in a 10-K
-    latest = None
-    for entry in entries_for(facts, "NetIncomeLoss"):
-        if entry.get("form") == "10-K" and is_full_year(entry):
-            if latest is None or entry["end"] > latest:
-                latest = entry["end"]
-    return latest
+    ends = [e["end"] for e in entries_for(facts, "NetIncomeLoss")
+            if e.get("form") == "10-K" and is_full_year(e)]
+    return max(ends) if ends else None
 
 
 def find_value(facts, item, period_end):
-    # Find one item's value for the year ending on period_end
+    # Value of one item for the year ending on period_end, in $ millions
     found = []
     for tag in TAGS[item]:
         for entry in entries_for(facts, tag):
-            if entry["end"] != period_end:
-                continue
-            if item in SNAPSHOT_ITEMS or is_full_year(entry):
-                found.append((entry["val"], tag))
+            if entry["end"] == period_end and (item in SNAPSHOT_ITEMS or is_full_year(entry)):
+                found.append(entry["val"])
                 break
         if found and item != "revenue":
-            return found[0]
+            break
     if not found:
-        return None, None
+        return None
     # Some companies report only a piece of revenue under one tag, so for
-    # revenue we take the largest of the matching tags (the total)
-    return max(found)
+    # revenue we take the largest matching tag (the total)
+    return max(found) / 1_000_000
 
 
 def shares_from_cover_page(data):
-    # Backup: shares outstanding from the cover page of the latest filing
-    cover = data["facts"].get("dei", {})
-    entries = entries_for(cover, "EntityCommonStockSharesOutstanding")
+    # Backup: shares outstanding from the cover page, adding up share classes
+    entries = entries_for(data["facts"].get("dei", {}), "EntityCommonStockSharesOutstanding")
     if not entries:
         return None
-    latest = max(entry["end"] for entry in entries)
-    total = 0
-    for entry in entries:
-        if entry["end"] == latest:
-            total += entry["val"]  # add up share classes (e.g. Class A + B)
-    return total
+    latest = max(e["end"] for e in entries)
+    return sum(e["val"] for e in entries if e["end"] == latest) / 1_000_000
 
 
 def prior_year_end(facts, period_end):
     # The end date of the year before, found from the revenue history
-    target = to_date(period_end)
-    best = None
     for tag in TAGS["revenue"]:
+        best = None
         for entry in entries_for(facts, tag):
-            if not is_full_year(entry):
-                continue
-            gap = (target - to_date(entry["end"])).days
-            if 350 <= gap <= 380:
+            if is_full_year(entry) and 350 <= days_between(entry["end"], period_end) <= 380:
                 best = entry["end"]
         if best:
             return best
@@ -159,11 +136,7 @@ def load_company(ticker, cik_lookup):
     company = {"name": data["entityName"], "ticker": ticker,
                "fiscal_year_end": period_end, "missing": []}
     for item in TAGS:
-        value, tag = find_value(facts, item, period_end)
-        if value is None:
-            company[item] = None
-        else:
-            company[item] = value / 1_000_000  # convert to millions
+        company[item] = find_value(facts, item, period_end)
 
     # Fill gaps with reasonable backups, and record what we assumed
     company["notes"] = []
@@ -174,21 +147,14 @@ def load_company(ticker, cik_lookup):
         company["capex"] = 0
         company["notes"].append("capex not reported; assumed 0")
     if company["shares"] is None:
-        cover_shares = shares_from_cover_page(data)
-        if cover_shares:
-            company["shares"] = cover_shares / 1_000_000
+        company["shares"] = shares_from_cover_page(data) or None
+        if company["shares"]:
             company["notes"].append("shares taken from filing cover page")
 
-    for item in TAGS:
-        if company[item] is None:
-            company["missing"].append(item)
+    company["missing"] = [item for item in TAGS if company[item] is None]
 
     previous = prior_year_end(facts, period_end)
-    company["prior_year_revenue"] = None
-    if previous:
-        value, tag = find_value(facts, "revenue", previous)
-        if value is not None:
-            company["prior_year_revenue"] = value / 1_000_000
+    company["prior_year_revenue"] = find_value(facts, "revenue", previous) if previous else None
     return company
 
 
