@@ -8,7 +8,7 @@ import os
 
 from metrics import all_metrics, fmt
 from sec_data import ticker_to_cik, load_company
-from stage3_dcf import ask_assumptions, dcf
+from stage3_dcf import ask_assumptions, dcf, describe
 from stage5_excel import save_report
 from stage6_credit import credit_rating
 
@@ -37,6 +37,7 @@ def main():
     for c in companies:
         dcf_results[c["ticker"]] = dcf(c, assumptions)
 
+    print("\nDCF: " + describe(assumptions))
     print(f"\n{'Ticker':<7}{'Group':<16}{'Rev growth':>11}{'EBITDA mgn':>11}"
           f"{'Debt/EBITDA':>12}{'Value/share':>13}  Credit")
     for c in companies:

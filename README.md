@@ -12,7 +12,7 @@ Pulls each company's latest 10-K numbers from the SEC's free EDGAR API, then cal
 |---|---|---|
 | 1 | `stage1_metrics.py` | Metrics for one company from hand-entered numbers (Papa John's) |
 | 2 | `stage2_peers.py` | Loops over a list of companies and prints a comparison table |
-| 3 | `stage3_dcf.py` | 5-year DCF with a terminal value; asks you for the assumptions |
+| 3 | `stage3_dcf.py` | DCF where you choose the terminal value method (Gordon Growth or EBITDA exit multiple), projection years, growth, discount rate and mid-year convention |
 | 4 | `sec_data.py` | Downloads financial data from SEC EDGAR |
 | 5 | `stage5_excel.py` | Saves metrics, DCF and credit results to Excel |
 | 6 | `stage6_credit.py` | Credit scorecard from leverage and interest coverage |

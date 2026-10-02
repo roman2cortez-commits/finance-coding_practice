@@ -62,23 +62,37 @@ def save_report(companies, dcf_results, assumptions, filename):
     # Sheet 2: DCF results
     sheet = wb.create_sheet("DCF")
     write_header(sheet, ["Company", "Ticker", "Starting FCF ($mm)", "Enterprise value ($mm)",
-                         "Equity value ($mm)", "Terminal value % of EV", "Value per share"])
+                         "Equity value ($mm)", "Terminal value % of EV", "Value per share",
+                         "Implied exit multiple", "Implied terminal growth"])
     for row, c in enumerate(companies, start=2):
         r = dcf_results[c["ticker"]]
         if r is None:
-            write_row(sheet, row, [c["name"], c["ticker"], "Not enough positive FCF"], [None] * 3)
+            write_row(sheet, row, [c["name"], c["ticker"], "Not enough positive FCF or EBITDA"],
+                      [None] * 3)
             continue
         write_row(sheet, row,
                   [c["name"], c["ticker"], r["starting_fcf"], r["enterprise_value"],
-                   r["equity_value"], r["terminal_share"], r["value_per_share"]],
-                  [None, None, "usd", "usd", "usd", "pct", "usd2"])
+                   r["equity_value"], r["terminal_share"], r["value_per_share"],
+                   r["implied_exit_multiple"], r["implied_terminal_growth"]],
+                  [None, None, "usd", "usd", "usd", "pct", "usd2", "x", "pct"])
+
+    # Assumptions block below the table
     last = len(companies) + 3
     sheet.cell(row=last, column=1, value="Assumptions").font = Font(name="Arial", bold=True)
-    labels = [("FCF growth, years 1-5", "growth"), ("Discount rate", "discount"),
-              ("Terminal growth", "terminal")]
-    for i, (label, key) in enumerate(labels, start=1):
-        write_row(sheet, last + i, [label, None, assumptions[key]], [None, None, "pct"])
-    set_widths(sheet, [28, 8, 18, 20, 18, 18, 16])
+    rows = [
+        ("Terminal value method", assumptions["method"], None),
+        ("Projection years", assumptions["years"], None),
+        ("Growth rate (cash flow and EBITDA)", assumptions["growth"], "pct"),
+        ("Discount rate", assumptions["discount"], "pct"),
+        ("Mid-year convention", "Yes" if assumptions["mid_year"] else "No", None),
+    ]
+    if assumptions["terminal"] is not None:
+        rows.append(("Terminal growth rate", assumptions["terminal"], "pct"))
+    if assumptions["exit_multiple"] is not None:
+        rows.append(("Exit EV / EBITDA multiple", assumptions["exit_multiple"], "x"))
+    for i, (label, value, kind) in enumerate(rows, start=1):
+        write_row(sheet, last + i, [label, None, value], [None, None, kind])
+    set_widths(sheet, [34, 8, 18, 20, 18, 18, 16, 16, 18])
 
     # Sheet 3: credit scorecard
     sheet = wb.create_sheet("Credit")
