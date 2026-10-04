@@ -1,7 +1,6 @@
 # Pandas practice
 import pandas as pd
 
-data = {"item": ["rent", "food", "gas"], "cost": [1200, 300, 80]}
-df = pd.DataFrame(data)
-print(df)
-print("Total:", df["cost"].sum())
+nums = [1,2,3,4,5]
+s = pd.Series(nums)
+print(s)
